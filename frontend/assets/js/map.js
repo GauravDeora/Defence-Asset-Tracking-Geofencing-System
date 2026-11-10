@@ -25,14 +25,20 @@ var MapController = {
 
     // ── Base Maps ────────────────────────────────────────────────────────────
     tileLayers: {
-        osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19, attribution: '&copy; OpenStreetMap contributors'
+        osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            referrerPolicy: 'strict-origin-when-cross-origin',
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>'
         }),
+
         satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19, attribution: 'Tiles &copy; Esri'
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri'
         }),
+
         terrain: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-            maxZoom: 17, attribution: 'Map data &copy; OpenTopoMap'
+            maxZoom: 17,
+            attribution: 'Map data &copy; OpenTopoMap'
         })
     },
 

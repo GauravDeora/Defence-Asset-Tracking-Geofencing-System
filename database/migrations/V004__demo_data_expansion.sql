@@ -33,7 +33,12 @@ ON CONFLICT (asset_code) DO UPDATE SET
     description = EXCLUDED.description,
     status = EXCLUDED.status;
 
--- Refresh named demo geofence zones so reruns remain deterministic.
+-- Remove alerts from previous runs of this demo dataset.
+DELETE FROM alerts
+WHERE triggered_at BETWEEN TIMESTAMP '2026-06-25 09:00:00'
+                        AND TIMESTAMP '2026-06-25 10:00:00';
+
+-- Refresh only the four named demo geofence zones.
 DELETE FROM geofence_zones
 WHERE zone_name IN (
     'Zone-Charlie-Command-Warning',
@@ -41,59 +46,6 @@ WHERE zone_name IN (
     'Zone-Echo-Radar-Restricted',
     'Zone-Foxtrot-Assembly-Safe'
 );
-
-WITH creator AS (
-    SELECT COALESCE(
-        (SELECT id FROM users WHERE username = 'drdo'),
-        (SELECT id FROM users WHERE username = 'admin'),
-        1
-    ) AS created_by
-)
-INSERT INTO geofence_zones (zone_name, zone_type, description, color, geom, created_by, is_active)
-SELECT
-    z.zone_name,
-    z.zone_type,
-    z.description,
-    z.color,
-    ST_SetSRID(ST_GeomFromText(z.wkt), 4326),
-    creator.created_by,
-    TRUE
-FROM creator
-CROSS JOIN (
-    VALUES
-        (
-            'Zone-Charlie-Command-Warning',
-            'warning',
-            'Warning envelope surrounding the forward command post.',
-            '#FF9800',
-            'POLYGON((73.072 26.252,73.092 26.252,73.092 26.274,73.072 26.274,73.072 26.252))'
-        ),
-        (
-            'Zone-Delta-Logistics-Monitored',
-            'monitored',
-            'Monitored logistics corridor used by refuelling and supply assets.',
-            '#2196F3',
-            'POLYGON((73.034 26.205,73.055 26.205,73.055 26.222,73.034 26.222,73.034 26.205))'
-        ),
-        (
-            'Zone-Echo-Radar-Restricted',
-            'restricted',
-            'Restricted perimeter protecting radar stations and electronic warfare gear.',
-            '#D32F2F',
-            'POLYGON((73.094 26.258,73.118 26.258,73.118 26.282,73.094 26.282,73.094 26.258))'
-        ),
-        (
-            'Zone-Foxtrot-Assembly-Safe',
-            'safe',
-            'Safe assembly and regrouping sector for personnel and light vehicles.',
-            '#4CAF50',
-            'POLYGON((73.112 26.226,73.132 26.226,73.132 26.246,73.112 26.246,73.112 26.226))'
-        )
-) AS z(zone_name, zone_type, description, color, wkt);
-
--- Reset only the time-window used by this migration so reruns remain stable.
-DELETE FROM alerts
-WHERE triggered_at BETWEEN TIMESTAMP '2026-06-25 09:00:00' AND TIMESTAMP '2026-06-25 10:00:00';
 
 DELETE FROM asset_positions ap
 USING assets a
@@ -106,6 +58,11 @@ WHERE ap.asset_id = a.id
       'RS-001', 'RS-002'
   )
   AND ap.recorded_at BETWEEN TIMESTAMP '2026-06-25 08:00:00' AND TIMESTAMP '2026-06-25 08:45:00';
+
+
+
+-- Prevent duplicate automatic alerts during demo-data insertion.
+ALTER TABLE asset_positions DISABLE TRIGGER trg_geofence_check;
 
 -- Insert 60 GPS position records with valid foreign keys.
 WITH asset_refs AS (
@@ -216,6 +173,9 @@ FROM (
         ('RS-002', 73.1160, 26.2640,  0.0,   0.0,  20.0, 2.0, TIMESTAMP '2026-06-25 08:30:00', TIMESTAMP '2026-06-25 08:30:05')
 ) AS v(asset_code, lng, lat, speed, heading, altitude, accuracy, recorded_at, received_at)
 JOIN asset_refs a ON a.asset_code = v.asset_code;
+
+-- Restore automatic geofence alerts for normal application operation.
+ALTER TABLE asset_positions ENABLE TRIGGER trg_geofence_check;
 
 -- Insert 10 demo alerts with valid foreign keys and geometry.
 WITH asset_refs AS (
